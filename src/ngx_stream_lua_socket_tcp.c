@@ -999,7 +999,7 @@ ngx_stream_lua_socket_tcp_bind(lua_State *L)
     luaL_checktype(L, 1, LUA_TTABLE);
 
     text = (u_char *) luaL_checklstring(L, 2, &len);
-    local = ngx_stream_lua_parse_addr(L, text, len);
+    local = ngx_stream_lua_parse_addr(L, text, len, 0);
     if (local == NULL) {
         lua_pushnil(L);
         lua_pushfstring(L, "bad address");

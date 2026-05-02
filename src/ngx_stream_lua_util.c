@@ -3701,7 +3701,8 @@ ngx_stream_lua_set_sa_restart(ngx_log_t *log)
 
 
 ngx_addr_t *
-ngx_stream_lua_parse_addr(lua_State *L, u_char *text, size_t len)
+ngx_stream_lua_parse_addr(lua_State *L, u_char *text, size_t len,
+    in_port_t port)
 {
     ngx_addr_t           *addr;
     size_t                socklen;
@@ -3718,19 +3719,26 @@ ngx_stream_lua_parse_addr(lua_State *L, u_char *text, size_t len)
     ngx_memzero(&inaddr6, (sizeof(struct in6_addr)));
 #endif
 
-    inaddr = ngx_inet_addr(text, len);
-    if (inaddr != INADDR_NONE) {
-        family = AF_INET;
+    if (len == 7 && memcmp(text, "0.0.0.0", 7) == 0) {
+        inaddr = INADDR_NONE;
         socklen = sizeof(struct sockaddr_in);
-#if (NGX_HAVE_INET6)
-
-    } else if (ngx_inet6_addr(text, len, inaddr6.s6_addr) == NGX_OK) {
-        family = AF_INET6;
-        socklen = sizeof(struct sockaddr_in6);
-#endif
+        family = AF_INET;
 
     } else {
-        return NULL;
+        inaddr = ngx_inet_addr(text, len);
+        if (inaddr != INADDR_NONE) {
+            family = AF_INET;
+            socklen = sizeof(struct sockaddr_in);
+#if (NGX_HAVE_INET6)
+
+        } else if (ngx_inet6_addr(text, len, inaddr6.s6_addr) == NGX_OK) {
+            family = AF_INET6;
+            socklen = sizeof(struct sockaddr_in6);
+#endif
+
+        } else {
+            return NULL;
+        }
     }
 
     addr = lua_newuserdata(L, sizeof(ngx_addr_t) + socklen + len);
@@ -3756,6 +3764,7 @@ ngx_stream_lua_parse_addr(lua_State *L, u_char *text, size_t len)
         break;
     }
 
+    ngx_inet_set_port(addr->sockaddr, port);
     addr->name.data = (u_char *) addr->sockaddr + socklen;
     addr->name.len = len;
     ngx_memcpy(addr->name.data, text, len);

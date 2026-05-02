@@ -262,11 +262,12 @@ ngx_stream_lua_socket_udp_bind(lua_State *L)
     u_char                 *text;
     size_t                  len;
     ngx_addr_t             *local;
+    ngx_int_t               port = 0;
 
     ngx_stream_lua_request_t    *r;
 
     n = lua_gettop(L);
-    if (n != 2) {
+    if (n != 2 && n != 3) {
         return luaL_error(L, "expecting 2 arguments, but got %d",
                           lua_gettop(L));
     }
@@ -286,7 +287,13 @@ ngx_stream_lua_socket_udp_bind(lua_State *L)
     luaL_checktype(L, 1, LUA_TTABLE);
 
     text = (u_char *) luaL_checklstring(L, 2, &len);
-    local = ngx_stream_lua_parse_addr(L, text, len);
+    if (n == 3) {
+        port = luaL_checkinteger(L, 3);
+        if (port <= 0 || port > 65535)
+            return luaL_error(L, "bad port number: %d", port);
+    }
+
+    local = ngx_stream_lua_parse_addr(L, text, len, port);
     if (local == NULL) {
         lua_pushnil(L);
         lua_pushfstring(L, "bad address");
@@ -499,6 +506,7 @@ ngx_stream_lua_socket_udp_setpeername(lua_State *L)
         u->resolved->socklen = url.addrs[0].socklen;
         u->resolved->naddrs = 1;
         u->resolved->host = url.addrs[0].name;
+        u->resolved->port = ngx_inet_get_port(url.addrs[0].sockaddr);
 
     } else {
         u->resolved->host = host;
@@ -1640,7 +1648,7 @@ ngx_stream_lua_udp_connect_set_transparent(ngx_stream_lua_udp_connection_t *uc,
 
 #endif /* SO_BINDANY */
 
-return NGX_OK;
+    return NGX_OK;
 }
 #endif
 
@@ -1742,7 +1750,7 @@ ngx_stream_lua_udp_connect(ngx_stream_lua_socket_udp_upstream_t *u)
 #endif
 
 #if (NGX_HAVE_IP_BIND_ADDRESS_NO_PORT || NGX_LINUX)
-        port = u->resolved->port;
+        port = ngx_inet_get_port(local->sockaddr);
 #endif
 
 #if (NGX_HAVE_IP_BIND_ADDRESS_NO_PORT)
